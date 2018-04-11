@@ -32,6 +32,7 @@ import java.nio.ByteOrder;
 import java.util.*;
 
 import static ucar.nc2.jni.netcdf.Nc4prototypes.*;
+import ucar.nc2.jni.netcdf.NcMemio;
 
 /**
  * IOSP for reading netcdf files through jni interface to netcdf4 library
@@ -291,17 +292,45 @@ public class Nc4Iosp extends AbstractIOServiceProvider implements IOServiceProvi
     // System.out.printf("%s closed%n", ncfile.getLocation());
   }
 
-  public void open(RandomAccessFile raf, NetcdfFile ncfile, CancelTask cancelTask) throws IOException {
+  public void closeMem(NcMemio params) throws IOException {
+    if (isClosed) return;
+    if (ncid < 0) return;
+    int ret = nc4.nc_close_memio(ncid, params.getStructure());
+    if (ret != 0)
+      throw new IOException(ret + ": " + nc4.nc_strerror(ret));
+    isClosed = true;
+    // System.out.printf("%s closed%n", ncfile.getLocation());
+  }
+  
+  public void open(RandomAccessFile raf, NetcdfFile ncfile, CancelTask cancelTask, EnumSet<NcMode> mode) throws IOException {
     super.open(raf, ncfile, cancelTask);
-    _open(raf, ncfile, true);
+    _open(raf, ncfile, true, null, mode);
   }
 
-  public void openForWriting(ucar.unidata.io.RandomAccessFile raf, ucar.nc2.NetcdfFile ncfile, ucar.nc2.util.CancelTask cancelTask) throws IOException {
+  public void open(RandomAccessFile raf, NetcdfFile ncfile, CancelTask cancelTask) throws IOException {
+    open(raf, ncfile, cancelTask, EnumSet.noneOf(NcMode.class));
+  }
+  
+  public void openForWriting(ucar.unidata.io.RandomAccessFile raf, ucar.nc2.NetcdfFile ncfile, ucar.nc2.util.CancelTask cancelTask, EnumSet<NcMode> mode) throws IOException {
     this.ncfile = ncfile;
-    _open(raf, ncfile, false);
+    _open(raf, ncfile, false, null, mode);
+  }
+  
+  public void openForWriting(ucar.unidata.io.RandomAccessFile raf, ucar.nc2.NetcdfFile ncfile, ucar.nc2.util.CancelTask cancelTask) throws IOException {
+    openForWriting(raf,ncfile,cancelTask,EnumSet.noneOf(NcMode.class));
   }
 
-  private void _open(RandomAccessFile raf, NetcdfFile ncfile, boolean readOnly) throws IOException {
+  public void openMem(ucar.nc2.NetcdfFile ncfile, ucar.nc2.util.CancelTask cancelTask, NcMemio params) throws IOException {
+    super.open(raf, ncfile, cancelTask);
+    _open(raf, ncfile, true, params, EnumSet.noneOf(NcMode.class));
+  }
+  
+  public void openMemForWriting(ucar.nc2.NetcdfFile ncfile, ucar.nc2.util.CancelTask cancelTask, NcMemio params) throws IOException {
+      this.ncfile = ncfile;
+      _open(raf, ncfile, false, params, EnumSet.noneOf(NcMode.class));
+  }
+  
+  private void _open(RandomAccessFile raf, NetcdfFile ncfile, boolean readOnly, NcMemio params , EnumSet<NcMode> mode) throws IOException {
     if (!isClibraryPresent()) {
       throw new UnsupportedOperationException("Couldn't load NetCDF C library (see log for details).");
     }
@@ -315,7 +344,16 @@ public class Nc4Iosp extends AbstractIOServiceProvider implements IOServiceProvi
     log.debug("open {}", location);
 
     IntByReference ncidp = new IntByReference();
-    int ret = nc4.nc_open(location, readOnly ? NC_NOWRITE : NC_WRITE, ncidp);
+    
+    int modeInt = (readOnly ? NC_NOWRITE : NC_WRITE);
+    modeInt = NcModeConvertor.compute(modeInt, mode);
+    
+    int ret = 0;
+    if (params == null) {
+        nc4.nc_open(location, modeInt, ncidp);
+    } else {
+        nc4.nc_open_memio(location, modeInt, params.getStructure(),  ncidp);
+    }
     if (ret != 0) throw new IOException(ret + ": " + nc4.nc_strerror(ret));
 
     isClosed = false;
