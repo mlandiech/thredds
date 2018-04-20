@@ -60,5 +60,10 @@ public class InMemoryRandomAccessFile extends ucar.unidata.io.RandomAccessFile {
   public long readToByteChannel(WritableByteChannel dest, long offset, long nbytes) throws IOException {
     return dest.write(ByteBuffer.wrap(buffer, (int) offset, (int) nbytes));
   }
+  
+  //TODO
+  public byte[] getBuffer() throws IOException {
+    return buffer;
+  }
 
 }

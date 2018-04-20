@@ -24,6 +24,7 @@ import ucar.nc2.util.DebugFlags;
 import ucar.nc2.util.EscapeStrings;
 import ucar.nc2.write.Nc4Chunking;
 import ucar.nc2.write.Nc4ChunkingDefault;
+import ucar.unidata.io.InMemoryRandomAccessFile;
 import ucar.unidata.io.RandomAccessFile;
 
 import java.io.IOException;
@@ -32,6 +33,7 @@ import java.nio.ByteOrder;
 import java.util.*;
 
 import static ucar.nc2.jni.netcdf.Nc4prototypes.*;
+import ucar.nc2.jni.netcdf.NcMemio;
 
 /**
  * IOSP for reading netcdf files through jni interface to netcdf4 library
@@ -281,10 +283,24 @@ public class Nc4Iosp extends AbstractIOServiceProvider implements IOServiceProvi
     return version.isNetdf4format() ? DataFormatType.NETCDF4.getDescription() : DataFormatType.HDF5.getDescription();
   }
 
+  //TODO
   public void close() throws IOException {
     if (isClosed) return;
     if (ncid < 0) return;
-    int ret = nc4.nc_close(ncid);
+    int ret = 0;
+    if (this.ncfile.isInMemory() || this.ncfile.isDiskLess()) {
+
+      NcMemio param = new NcMemio(100000); //TODO 
+      ret = nc4.nc_close_memio(ncid, param.getStructure());
+
+      this.ncfile.setInMemoryBuffer(param.getStructure().memory.getByteArray(0, param.getStructure().size.intValue()));
+
+    } else {
+
+      ret = nc4.nc_close(ncid);
+
+    }
+    
     if (ret != 0)
       throw new IOException(ret + ": " + nc4.nc_strerror(ret));
     isClosed = true;
@@ -295,19 +311,25 @@ public class Nc4Iosp extends AbstractIOServiceProvider implements IOServiceProvi
     super.open(raf, ncfile, cancelTask);
     _open(raf, ncfile, true);
   }
-
-  public void openForWriting(ucar.unidata.io.RandomAccessFile raf, ucar.nc2.NetcdfFile ncfile, ucar.nc2.util.CancelTask cancelTask) throws IOException {
+  
+  public void openForWriting(ucar.unidata.io.RandomAccessFile raf, ucar.nc2.NetcdfFile ncfile, ucar.nc2.util.CancelTask cancelTask) 
+          throws IOException {
     this.ncfile = ncfile;
     _open(raf, ncfile, false);
   }
-
+  
   private void _open(RandomAccessFile raf, NetcdfFile ncfile, boolean readOnly) throws IOException {
     if (!isClibraryPresent()) {
       throw new UnsupportedOperationException("Couldn't load NetCDF C library (see log for details).");
     }
-
-    if (raf != null)
+    
+    byte[] buffer = null;
+    if (raf != null){
+      if (this.ncfile.isInMemory() && (InMemoryRandomAccessFile)raf != null) {
+          buffer = ((InMemoryRandomAccessFile)raf).getBuffer();
+      }
       raf.close(); // not used
+    }
 
     // open
     // netcdf-c can't handle "file:" prefix. Must remove it.
@@ -315,7 +337,30 @@ public class Nc4Iosp extends AbstractIOServiceProvider implements IOServiceProvi
     log.debug("open {}", location);
 
     IntByReference ncidp = new IntByReference();
-    int ret = nc4.nc_open(location, readOnly ? NC_NOWRITE : NC_WRITE, ncidp);
+    
+    EnumSet<NcMode> mode = EnumSet.noneOf(NcMode.class);
+    // Add read/write mode
+    if (readOnly) {
+        mode.add(NcMode.NC_NOWRITE);
+    } else {
+        mode.add(NcMode.NC_WRITE);
+    }
+    // Add diskless mode if required
+    if (this.ncfile.isDiskLess()) {
+        mode.add(NcMode.NC_DISKLESS);
+    }
+    // Compute flag
+    int modeInt = NcModeConvertor.compute(mode);
+    
+    
+    int ret = 0;
+    
+    if (this.ncfile.isInMemory() && buffer != null) {
+        NcMemio params = new NcMemio(buffer);
+        ret = nc4.nc_open_memio(location, modeInt, params.getStructure(),  ncidp);
+    } else {
+        ret = nc4.nc_open(location, modeInt, ncidp);
+    }
     if (ret != 0) throw new IOException(ret + ": " + nc4.nc_strerror(ret));
 
     isClosed = false;
@@ -2360,7 +2405,21 @@ public class Nc4Iosp extends AbstractIOServiceProvider implements IOServiceProvi
       throw new IOException(ret + ": " + nc4.nc_strerror(ret)); */
 
     IntByReference ncidp = new IntByReference();
-    ret = nc4.nc_create(filename, createMode(), ncidp);
+    
+    EnumSet<NcMode> mode = EnumSet.noneOf(NcMode.class);
+    // Add diskless mode if required
+    if (this.ncfile.isDiskLess()) {
+      mode.add(NcMode.NC_DISKLESS);
+    }
+    int modeInt = createMode();
+    // Compute flag
+    modeInt = NcModeConvertor.compute(modeInt,mode);
+    
+    if (this.ncfile.isInMemory() ) {
+      ret = nc4. nc_create_mem(filename, modeInt, new SizeT(preallocateSize), ncidp);
+    } else {
+      ret = nc4.nc_create(filename, modeInt, ncidp);
+    }
     if (ret != 0)
       throw new IOException(ret + ": " + nc4.nc_strerror(ret));
 
@@ -2376,7 +2435,7 @@ public class Nc4Iosp extends AbstractIOServiceProvider implements IOServiceProvi
     if (debugWrite) System.out.printf("create done%n%n");
   }
 
-
+  
   /*
     cmode    The creation mode flag. The following flags are available:
     NC_NOCLOBBER (do not overwrite existing file),

@@ -11,12 +11,19 @@ import ucar.nc2.iosp.hdf5.H5header;
 import ucar.nc2.iosp.netcdf3.N3header;
 import ucar.nc2.iosp.netcdf3.N3iosp;
 import ucar.nc2.iosp.netcdf3.N3raf;
+import ucar.nc2.util.IO;
 import ucar.nc2.write.Nc4Chunking;
+import ucar.unidata.io.InMemoryRandomAccessFile;
 
 import javax.annotation.Nonnull;
+
+import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.*;
@@ -98,6 +105,27 @@ public class NetcdfFileWriter implements Closeable {
   static public NetcdfFileWriter openExisting(String location) throws IOException {
     return new NetcdfFileWriter(null, location, true, null); // dont know the version yet
   }
+  
+  /**
+   * TODO
+   */
+  static public NetcdfFileWriter openExistingInMemoryFull(String location) throws IOException {
+    return new NetcdfFileWriter(null, location, true, false, true, 0, null, null);
+  }
+  
+  /**
+   * TODO
+   */
+  static public NetcdfFileWriter openExistingInMemoryFull(String name, byte[] data) throws IOException {
+    return new NetcdfFileWriter(null, name, true, false, true, data.length, data, null);
+  }
+
+  /**
+   * TODO
+   */
+  static public NetcdfFileWriter openExistingInMemoryFull(String name, byte[] data, long initialsize) throws IOException {
+    return new NetcdfFileWriter(null, name, true, false, true, initialsize, data, null);
+  }
 
   static public NetcdfFileWriter createNew(Version version, String location) throws IOException {
     return new NetcdfFileWriter(version, location, false, null);
@@ -122,6 +150,52 @@ public class NetcdfFileWriter implements Closeable {
     return new NetcdfFileWriter(version, location, false, chunker);
   }
 
+  /**
+   * TODO
+   */
+  static public NetcdfFileWriter createNewInMemoryFull(Version version, String location) throws IOException {
+    return new NetcdfFileWriter(version, location, true, true, false, 0, null, null);
+  }
+  
+  /**
+   * TODO
+   */
+  static public NetcdfFileWriter createNewInMemoryFull(Version version, String location, long initialsize) throws IOException {
+    return new NetcdfFileWriter(version, location, true, false, true, initialsize, null, null);
+  }
+  
+  /**
+   * TODO
+   */
+  static public NetcdfFileWriter createNewInMemoryFull(String location, boolean fill) throws IOException {
+    NetcdfFileWriter result = new NetcdfFileWriter(Version.netcdf3, location, false, true, false, 0, null, null);
+    result.setFill(fill);
+    return result;
+  }
+  
+  /**
+   * TODO
+   */
+  static public NetcdfFileWriter createNewInMemoryFull(String location, boolean fill, long initialsize) throws IOException {
+    NetcdfFileWriter result = new NetcdfFileWriter(Version.netcdf3, location, false, false, true, initialsize, null, null);
+    result.setFill(fill);
+    return result;
+  }
+  
+  /**
+   * TODO
+   */
+  static public NetcdfFileWriter createNewInMemoryFull(Version version, String location, Nc4Chunking chunker) throws IOException {
+    return new NetcdfFileWriter(version, location, false, true, false, 0, null, chunker);
+  }
+  
+  /**
+   * TODO
+   */
+  static public NetcdfFileWriter createNewInMemoryFull(Version version, String location, Nc4Chunking chunker, long initialsize) throws IOException {
+    return new NetcdfFileWriter(version, location, false, false, true, initialsize, null, chunker);
+  }
+  
   ////////////////////////////////////////////////////////////////////////////////
   private final String location;
   private IOServiceProviderWriter spiw;
@@ -137,6 +211,7 @@ public class NetcdfFileWriter implements Closeable {
   private boolean fill = true;
   private int extraHeader;
   private long preallocateSize;
+  private long initialSize = 0;
   private Map<String,String> varRenameMap = new HashMap<>();
 
   /**
@@ -148,11 +223,44 @@ public class NetcdfFileWriter implements Closeable {
    * @param chunker    used only for netcdf4, or null for used only for netcdf4, or null for default chunking algorithm
    * @throws IOException on I/O error
    */
-  protected NetcdfFileWriter(Version version, String location, boolean isExisting, Nc4Chunking chunker) throws IOException {
+  protected NetcdfFileWriter(Version version, String location, boolean isExisting, Nc4Chunking chunker) 
+                              throws IOException {
+    this(version, location, isExisting, false, false, 0, null, chunker);
+  }
+  
+  /**
+   * Open an existing or create a new Netcdf file
+   *
+   * @param version which kind of file to write, if null, use netcdf3 (isExisting= false) else open file and figure out the version
+   * @param location   open a new file at this location
+   * @param isExisting true if file already exists
+   * @param diskless TODO
+   * @param inMemory TODO
+   * @param initialsize TODO
+   * @param buffer TODO
+   * @param chunker    used only for netcdf4, or null for used only for netcdf4, or null for default chunking algorithm
+   * @throws IOException on I/O error
+   */
+  protected NetcdfFileWriter(Version version, String location, boolean isExisting, boolean diskless, 
+                              boolean inMemory, long initialSize, byte[] buffer, Nc4Chunking chunker) 
+                              throws IOException {
 
     ucar.unidata.io.RandomAccessFile raf = null;
     if (isExisting) {
-      raf = new ucar.unidata.io.RandomAccessFile(location, "rw");
+      if (inMemory ==  true) {
+        byte[] fileBuffer= buffer;
+        if (fileBuffer == null){
+          File file = new File(location);
+          ByteArrayOutputStream bos = new ByteArrayOutputStream((int) file.length());
+          try (InputStream in = new BufferedInputStream(new FileInputStream(location))) {
+            IO.copy(in, bos);
+          }
+          fileBuffer = bos.toByteArray();
+        }
+        raf = new ucar.unidata.io.InMemoryRandomAccessFile(location, fileBuffer);
+      } else {
+        raf = new ucar.unidata.io.RandomAccessFile(location, "rw");
+      }
 
       try {
         if (H5header.isValidFile(raf)) {
@@ -182,6 +290,7 @@ public class NetcdfFileWriter implements Closeable {
 
     this.version = version;
     this.location = location;
+    this.initialSize = initialSize;
 
     if (version.useJniIosp()) {
       IOServiceProviderWriter spi;
@@ -202,11 +311,12 @@ public class NetcdfFileWriter implements Closeable {
     }
 
 
-    this.ncfile = new NetcdfFile(spiw, location);  // package private
-    if (isExisting)
+    this.ncfile = new NetcdfFile(spiw, location, diskless, inMemory);  // package private
+    if (isExisting) {
       spiw.openForWriting(raf, ncfile, null);
-    else
+    } else {
       defineMode = true;
+    }
   }
 
   /**
@@ -855,6 +965,11 @@ public class NetcdfFileWriter implements Closeable {
 
     ncfile.finish(); // ??
     spiw.setFill(fill); // ??
+    
+    if (ncfile.isInMemory()){
+        preallocateSize=initialSize;
+    }
+    
     spiw.create(location, ncfile, extraHeader, preallocateSize, isLargeFile);
 
     defineMode = false;

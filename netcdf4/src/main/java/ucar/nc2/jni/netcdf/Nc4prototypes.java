@@ -32,9 +32,6 @@ public interface Nc4prototypes extends Library {
   int NC_GLOBAL = -1;
   int NC_UNLIMITED = 0;
 
-  int NC_NOWRITE = 0;
-  int NC_WRITE = 1;
-
   int NC_NAT = 0;	/* Not-A-Type */
   int NC_BYTE = 1;	/* signed 1 byte integer */
   int NC_CHAR =	2;	/* ISO/ASCII character */
@@ -57,20 +54,26 @@ public interface Nc4prototypes extends Library {
   int NC_ENUM =	15;	/* used internally for enum types */
   int NC_COMPOUND =	16;	/* used internally for compound types */
 
-  int NC_CLOBBER	     = 0;       /**< Destroy existing file. Mode flag for nc_create(). */
-  int NC_NOCLOBBER	   = 0x0004;	/**< Don't destroy existing file. Mode flag for nc_create(). */
-  int NC_DISKLESS      = 0x0008;  /**< Create a diskless file. Mode flag for nc_create(). */
+  int NC_NOWRITE       = 0x0000;  /**< Set read-only access for nc_open(). */
+  int NC_WRITE         = 0x0001;  /**< Set read-write access for nc_open(). */
+  int NC_CLOBBER       = 0x0000;  /**< Destroy existing file. Mode flag for nc_create(). */
+  int NC_NOCLOBBER     = 0x0004;  /**< Don't destroy existing file. Mode flag for nc_create(). */
+  int NC_DISKLESS      = 0x0008;  /**< Use diskless file. Mode flag for nc_open() or nc_create(). */
   int NC_MMAP          = 0x0010;  /**< Use diskless file with mmap. Mode flag for nc_open() or nc_create(). */
-  int NC_CLASSIC_MODEL = 0x0100; /**< Enforce classic model. Mode flag for nc_create(). */
+  int NC_CLASSIC_MODEL = 0x0100;  /**< Enforce classic model on netCDF-4. Mode flag for nc_create(). */
   int NC_64BIT_OFFSET  = 0x0200;  /**< Use large (64-bit) file offsets. Mode flag for nc_create(). */
   int NC_NETCDF4       = 0x1000;  /**< Use netCDF-4/HDF5 format. Mode flag for nc_create(). */
+  /** Share updates, limit caching.
+  Use this in mode flags for both nc_create() and nc_open(). */
+  int NC_SHARE         = 0x0800;
   /** Turn on MPI I/O.
       Use this in mode flags for both nc_create() and nc_open(). */
-  int NC_MPIIO =         0x2000;
+  int NC_MPIIO         = 0x2000;
   /** Turn on MPI POSIX I/O.
       Use this in mode flags for both nc_create() and nc_open(). */
-  int NC_MPIPOSIX =      0x4000;
-  int NC_PNETCDF =       0x8000;	/**< Use parallel-netcdf library. Mode flag for nc_open(). */
+  int NC_MPIPOSIX      = 0x4000;
+  int NC_PNETCDF       = NC_MPIIO;/**< Use parallel-netcdf library. Mode flag for nc_open(). */
+  int NC_INMEMORY      = 0x8000;  /**< Read from memory. Mode flag for nc_open() or nc_create() => NC_DISKLESS */
 
 /** Format specifier for nc_set_default_format() and returned
  *  by nc_inq_format. 
@@ -125,6 +128,12 @@ public interface Nc4prototypes extends Library {
   int nc_close(int ncid);
   int nc_inq_format(int ncid, IntByReference formatp);
   int nc_inq_format_extended(int ncid, IntByReference formatp, IntByReference modep);
+
+  // access the memory contents of a file created by NC_DISKLESS
+  int nc_open_mem(String path, int mode, SizeT size, Pointer memory, IntByReference ncidp);
+  int nc_create_mem(String path, int mode, SizeT initialsize, IntByReference ncidp);
+  int nc_open_memio(String path, int mode, NcMemioStructure info, IntByReference ncidp);
+  int nc_close_memio(int ncid, NcMemioStructure info);
 
   // groups
   int nc_inq_grps(int ncid, IntByReference numgrps, Pointer np); // allow to pass NULL
