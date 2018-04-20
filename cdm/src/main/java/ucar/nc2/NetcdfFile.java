@@ -787,6 +787,7 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, Closeable 
 
   /**
    * Open an in-memory netcdf file.
+   * (Only header validation)
    *
    * @param name name of the dataset. Typically use the filename or URI.
    * @param data in-memory netcdf file
@@ -800,6 +801,7 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, Closeable 
 
   /**
    * Read a local CDM file into memory. All reads are then done from memory.
+   * (Only header validation)
    *
    * @param filename location of CDM file, must be a local file.
    * @return a NetcdfFile, which is completely in memory
@@ -816,6 +818,7 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, Closeable 
 
   /**
    * Read a remote CDM file into memory. All reads are then done from memory.
+   * (Only header validation)
    *
    * @param uri location of CDM file, must be accessible through url.toURL().openStream().
    * @return a NetcdfFile, which is completely in memory
@@ -828,7 +831,8 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, Closeable 
   }
 
   /**
-   * TODO
+   * Read a remote CDM file into memory. All reads are then done from memory.
+   * Use Diskless mode for Netcdf 4
    *
    * @param location location of CDM file, must be a local file.
    * @return a NetcdfFile, which is completely in memory
@@ -840,9 +844,11 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, Closeable 
   }
   
   /**
-   * TODO
+   * Read a remote CDM file into memory. All reads are then done from memory.
+   * Use Diskless mode for Netcdf 4
    *
    * @param location location of CDM file, must be a local file.
+   * @param cancelTask allow task to be cancelled; may be null.
    * @return a NetcdfFile, which is completely in memory
    * @throws IOException if error reading file
    */
@@ -852,9 +858,12 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, Closeable 
   }
   
   /**
-   * TODO
+   * Read a remote CDM file into memory. All reads are then done from memory.
+   * Use Diskless mode for Netcdf 4
    *
    * @param location location of CDM file, must be a local file.
+   * @param cancelTask allow task to be cancelled; may be null.
+   * @param iospMessage special iosp tweaking (sent before open is called), may be null
    * @return a NetcdfFile, which is completely in memory
    * @throws IOException if error reading file
    */
@@ -876,9 +885,12 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, Closeable 
   }
   
   /**
-   * TODO
+   * Open Netcdf file from buffer. All reads are then done from memory.
+   * Use In Memory mode for Netcdf 4
    *
-   * @param location location of CDM file, must be a local file.
+   *
+   * @param name File name.
+   * @param data Buffer containing file.
    * @return a NetcdfFile, which is completely in memory
    * @throws IOException if error reading file
    */
@@ -888,9 +900,13 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, Closeable 
   }
   
   /**
-   * TODO
+   * Open Netcdf file from buffer. All reads are then done from memory.
+   * Use In Memory mode for Netcdf 4
    *
-   * @param location location of CDM file, must be a local file.
+   *
+   * @param name File name.
+   * @param data Buffer containing file.
+   * @param cancelTask allow task to be cancelled; may be null.
    * @return a NetcdfFile, which is completely in memory
    * @throws IOException if error reading file
    */
@@ -900,9 +916,14 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, Closeable 
   }
   
   /**
-   * TODO
+   * Open Netcdf file from buffer. All reads are then done from memory.
+   * Use In Memory mode for Netcdf 4
    *
-   * @param location location of CDM file, must be a local file.
+   *
+   * @param name File name.
+   * @param data Buffer containing file.
+   * @param cancelTask allow task to be cancelled; may be null.
+   * @param iospMessage special iosp tweaking (sent before open is called), may be null
    * @return a NetcdfFile, which is completely in memory
    * @throws IOException if error reading file
    */
@@ -922,6 +943,10 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, Closeable 
   /**
    * TODO
    * 
+   * @param raf 
+   * @param location 
+   * @param cancelTask 
+   * @param iospMessage
    * @throws IOException if error reading file
    */
   public static NetcdfFile open(ucar.unidata.io.RandomAccessFile raf, String location, ucar.nc2.util.CancelTask cancelTask,
@@ -932,6 +957,12 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, Closeable 
   /**
    * TODO
    * 
+   * @param raf 
+   * @param location 
+   * @param cancelTask 
+   * @param diskless 
+   * @param inMemory 
+   * @param iospMessage
    * @throws IOException if error reading file
    */
   public static NetcdfFile open(ucar.unidata.io.RandomAccessFile raf, String location, boolean diskless, boolean inMemory,
@@ -1494,9 +1525,7 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, Closeable 
    * @return InMemory buffer 
    */
   public byte[] getInMemoryBuffer(){
-      byte[] ret = this.inMemoryBuffer;
-      this.inMemoryBuffer = null;
-      return ret;
+      return this.inMemoryBuffer;
   }
   
   /**
