@@ -10,6 +10,13 @@ import java.util.List;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 
+/**
+ * TODO
+ *
+ * @author 
+ * @since 
+ * @see 
+ */
 public class NcMemioStructure extends Structure {
 
   public SizeT size;

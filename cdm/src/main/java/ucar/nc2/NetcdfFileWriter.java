@@ -107,23 +107,51 @@ public class NetcdfFileWriter implements Closeable {
   }
   
   /**
-   * TODO
+   * Open an existing Netcdf file for writing data in InMemory mode. Fill mode is true.
+   * Cannot add new objects, you can only read/write data to existing Variables.
+   *
+   * @param location name of existing file to open.
+   * @return existing file that can be written to
+   * @throws java.io.IOException on I/O error
    */
-  static public NetcdfFileWriter openExistingInMemoryFull(String location) throws IOException {
-    return new NetcdfFileWriter(null, location, true, false, true, 0, null, null);
+  static public NetcdfFileWriter openExistingInMemory(String location) throws IOException {
+    File file = new File(location);
+    byte[] fileBuffer= null;
+    ByteArrayOutputStream bos = new ByteArrayOutputStream((int) file.length());
+    try {
+      InputStream in = new BufferedInputStream(new FileInputStream(location));
+      IO.copy(in, bos);
+    } catch ( IOException ioe ) {
+      throw ioe;
+    }
+    fileBuffer = bos.toByteArray();
+    return new NetcdfFileWriter(null, location, true, false, true, fileBuffer.length, fileBuffer, null);
   }
   
   /**
-   * TODO
+   * Open an existing Netcdf file for writing data in InMemory mode. Fill mode is true.
+   * Cannot add new objects, you can only read/write data to existing Variables.
+   *
+   * @param name Netcdf file name.
+   * @param data buffer containing netcdf file.
+   * @return existing file that can be written to
+   * @throws java.io.IOException on I/O error
    */
-  static public NetcdfFileWriter openExistingInMemoryFull(String name, byte[] data) throws IOException {
+  static public NetcdfFileWriter openExistingInMemory(String name, byte[] data) throws IOException {
     return new NetcdfFileWriter(null, name, true, false, true, data.length, data, null);
   }
 
   /**
-   * TODO
+   * Open an existing Netcdf file for writing data in InMemory mode. Fill mode is true.
+   * Cannot add new objects, you can only read/write data to existing Variables.
+   *
+   * @param name Netcdf file name.
+   * @param data buffer containing netcdf file.
+   * @param initialsize Structure budffer initl size
+   * @return existing file that can be written to
+   * @throws java.io.IOException on I/O error
    */
-  static public NetcdfFileWriter openExistingInMemoryFull(String name, byte[] data, long initialsize) throws IOException {
+  static public NetcdfFileWriter openExistingInMemory(String name, byte[] data, long initialsize) throws IOException {
     return new NetcdfFileWriter(null, name, true, false, true, initialsize, data, null);
   }
 
@@ -140,59 +168,65 @@ public class NetcdfFileWriter implements Closeable {
   /**
    * Create a new Netcdf file, with fill mode true.
    *
-   * @param version  netcdf-3 or 4
+   * @param version  netcdf-4
    * @param location name of new file to open; if it exists, will overwrite it.
    * @param chunker  used only for netcdf4, or null for default chunking algorithm
    * @return new NetcdfFileWriter
    * @throws IOException on I/O error
    */
-  static public NetcdfFileWriter createNew(Version version, String location, Nc4Chunking chunker) throws IOException {
+  static public NetcdfFileWriter createNew(Version version, String location, 
+          Nc4Chunking chunker) throws IOException {
     return new NetcdfFileWriter(version, location, false, chunker);
   }
 
   /**
-   * TODO
+   * Create new Netcdf file in Diskless mode
+   * 
+   * @param version      netcdf-4
+   * @param location     name of new file to open; if it exists, will overwrite it. 
+   * @throws IOException if error reading file
    */
-  static public NetcdfFileWriter createNewInMemoryFull(Version version, String location) throws IOException {
-    return new NetcdfFileWriter(version, location, true, true, false, 0, null, null);
+  static public NetcdfFileWriter createNewDiskless(Version version, String location) throws IOException {
+    return new NetcdfFileWriter(version, location, false, true, false, 0, null, null);
   }
   
   /**
-   * TODO
+   * Create new Netcdf file in Diskless mode
+   * 
+   * @param version      netcdf-4
+   * @param location     name of new file to open; if it exists, will overwrite it. 
+   * @param chunker      used only for netcdf4, or null for default chunking algorithm
+   * @throws IOException if error reading file
    */
-  static public NetcdfFileWriter createNewInMemoryFull(Version version, String location, long initialsize) throws IOException {
-    return new NetcdfFileWriter(version, location, true, false, true, initialsize, null, null);
-  }
-  
-  /**
-   * TODO
-   */
-  static public NetcdfFileWriter createNewInMemoryFull(String location, boolean fill) throws IOException {
-    NetcdfFileWriter result = new NetcdfFileWriter(Version.netcdf3, location, false, true, false, 0, null, null);
-    result.setFill(fill);
-    return result;
-  }
-  
-  /**
-   * TODO
-   */
-  static public NetcdfFileWriter createNewInMemoryFull(String location, boolean fill, long initialsize) throws IOException {
-    NetcdfFileWriter result = new NetcdfFileWriter(Version.netcdf3, location, false, false, true, initialsize, null, null);
-    result.setFill(fill);
-    return result;
-  }
-  
-  /**
-   * TODO
-   */
-  static public NetcdfFileWriter createNewInMemoryFull(Version version, String location, Nc4Chunking chunker) throws IOException {
+  static public NetcdfFileWriter createNewDiskless(Version version, String location, 
+          Nc4Chunking chunker) throws IOException {
     return new NetcdfFileWriter(version, location, false, true, false, 0, null, chunker);
   }
   
   /**
-   * TODO
+   * Create new Netcdf file in InMemory mode
+   * 
+   * @param version      netcdf-4
+   * @param location     name of new file to open; if it exists, will overwrite it. 
+   * @param initialsize  InMemory buffer initial size
+   * @throws IOException if error reading file
    */
-  static public NetcdfFileWriter createNewInMemoryFull(Version version, String location, Nc4Chunking chunker, long initialsize) throws IOException {
+  static public NetcdfFileWriter createNewInMemory(Version version, String location, 
+          long initialsize) throws IOException {
+    return new NetcdfFileWriter(version, location, false, false, true, initialsize, null, null);
+  }
+  
+  /**
+   * Create new Netcdf file in InMemory mode
+   * 
+   * @param version      netcdf-3 or 4
+   * @param location     name of new file to open; if it exists, will overwrite it. 
+   * @param chunker      used only for netcdf4, or null for default chunking algorithm
+   * @param initialsize  InMemory buffer initial size
+   * @throws IOException if error reading file
+   */
+  static public NetcdfFileWriter createNewInMemory(Version version, String location, 
+          Nc4Chunking chunker, long initialsize) throws IOException {
     return new NetcdfFileWriter(version, location, false, false, true, initialsize, null, chunker);
   }
   
@@ -234,11 +268,11 @@ public class NetcdfFileWriter implements Closeable {
    * @param version which kind of file to write, if null, use netcdf3 (isExisting= false) else open file and figure out the version
    * @param location   open a new file at this location
    * @param isExisting true if file already exists
-   * @param diskless TODO
-   * @param inMemory TODO
-   * @param initialsize TODO
-   * @param buffer TODO
-   * @param chunker    used only for netcdf4, or null for used only for netcdf4, or null for default chunking algorithm
+   * @param diskless   true if diskless mode activated
+   * @param inMemory   true if inMemory mode activated
+   * @param initialsize InMemory buffer initial size
+   * @param buffer      Inmemory buffer.
+   * @param chunker     used only for netcdf4, or null for used only for netcdf4, or null for default chunking algorithm
    * @throws IOException on I/O error
    */
   protected NetcdfFileWriter(Version version, String location, boolean isExisting, boolean diskless, 
@@ -248,16 +282,10 @@ public class NetcdfFileWriter implements Closeable {
     ucar.unidata.io.RandomAccessFile raf = null;
     if (isExisting) {
       if (inMemory ==  true) {
-        byte[] fileBuffer= buffer;
-        if (fileBuffer == null){
-          File file = new File(location);
-          ByteArrayOutputStream bos = new ByteArrayOutputStream((int) file.length());
-          try (InputStream in = new BufferedInputStream(new FileInputStream(location))) {
-            IO.copy(in, bos);
-          }
-          fileBuffer = bos.toByteArray();
+        if (buffer == null){
+          throw new IllegalArgumentException("With InMemory option buffer can not be null");
         }
-        raf = new ucar.unidata.io.InMemoryRandomAccessFile(location, fileBuffer);
+        raf = new ucar.unidata.io.InMemoryRandomAccessFile(location, buffer);
       } else {
         raf = new ucar.unidata.io.RandomAccessFile(location, "rw");
       }

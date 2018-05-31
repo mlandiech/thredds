@@ -10,6 +10,13 @@ import com.sun.jna.Memory;
 import ucar.nc2.jni.netcdf.SizeT;
 import ucar.nc2.jni.netcdf.NcMemioStructure;
 
+/**
+ * TODO
+ *
+ * @author 
+ * @since 
+ * @see 
+ */
 public class NcMemio {
 
   public NcMemioStructure struct = null;
@@ -24,6 +31,7 @@ public class NcMemio {
       this.struct = new NcMemioStructure();
       this.struct.size = null;
       this.struct.memory = null;
+      this.struct.flags = 0;
   }
 
   /**
@@ -36,6 +44,7 @@ public class NcMemio {
     this.struct = new NcMemioStructure();
     this.struct.size = new SizeT(size);
     this.struct.memory = new Memory(this.struct.size.longValue());
+    this.struct.flags = 0;
   }
 
   /**
@@ -49,6 +58,7 @@ public class NcMemio {
     this.struct.size = new SizeT(buffer.length);
     this.struct.memory = new Memory(this.struct.size.longValue());
     this.struct.memory.write(0,buffer,0,buffer.length);
+    this.struct.flags = 0;
   }
   
   /**

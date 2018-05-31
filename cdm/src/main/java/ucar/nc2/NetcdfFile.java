@@ -473,7 +473,8 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, Closeable 
    * @return NetcdfFile object, or null if cant find IOServiceProver
    * @throws IOException if error
    */
-  static public NetcdfFile open(String location, int buffer_size, ucar.nc2.util.CancelTask cancelTask, Object iospMessage) throws IOException {
+  static public NetcdfFile open(String location, int buffer_size, ucar.nc2.util.CancelTask cancelTask, 
+          Object iospMessage) throws IOException {
 
     ucar.unidata.io.RandomAccessFile raf = getRaf(location, buffer_size);
 
@@ -765,7 +766,7 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, Closeable 
   }
 
   /**
-   * Open an in-memory netcdf file, with a specific iosp.
+   * Open netcdf file in-InMemory mode, with a specific iosp.
    *
    * @param name          name of the dataset. Typically use the filename or URI.
    * @param data          in-memory netcdf file
@@ -776,18 +777,18 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, Closeable 
    * @throws InstantiationException if class cannot be instantiated
    * @throws IllegalAccessException if class is not accessible
    */
-  public static NetcdfFile openInMemory(String name, byte[] data, String iospClassName) throws IOException, ClassNotFoundException, IllegalAccessException, InstantiationException {
+  public static NetcdfFile openInMemory(String name, byte[] data, 
+          String iospClassName) throws IOException, ClassNotFoundException, IllegalAccessException, InstantiationException {
 
     ucar.unidata.io.InMemoryRandomAccessFile raf = new ucar.unidata.io.InMemoryRandomAccessFile(name, data);
     Class iospClass = NetcdfFile.class.getClassLoader().loadClass(iospClassName);
     IOServiceProvider spi = (IOServiceProvider) iospClass.newInstance();
 
-    return new NetcdfFile(spi, raf, name, null);
+    return new NetcdfFile(spi,raf, false, true, name,null);
   }
 
   /**
-   * Open an in-memory netcdf file.
-   * (Only header validation)
+   * Open netcdf file in-InMemory mode
    *
    * @param name name of the dataset. Typically use the filename or URI.
    * @param data in-memory netcdf file
@@ -796,13 +797,12 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, Closeable 
    */
   public static NetcdfFile openInMemory(String name, byte[] data) throws IOException {
     ucar.unidata.io.InMemoryRandomAccessFile raf = new ucar.unidata.io.InMemoryRandomAccessFile(name, data);
-    return open(raf, name, false, false, null, null);
+    return open(raf, name, false, true, null, null);
   }
 
   /**
    * Read a local CDM file into memory. All reads are then done from memory.
-   * (Only header validation)
-   *
+   * 
    * @param filename location of CDM file, must be a local file.
    * @return a NetcdfFile, which is completely in memory
    * @throws IOException if error reading file
@@ -818,7 +818,6 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, Closeable 
 
   /**
    * Read a remote CDM file into memory. All reads are then done from memory.
-   * (Only header validation)
    *
    * @param uri location of CDM file, must be accessible through url.toURL().openStream().
    * @return a NetcdfFile, which is completely in memory
@@ -831,6 +830,33 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, Closeable 
   }
 
   /**
+   * Open netcdf file in-Diskless mode, with a specific iosp.
+   *
+   * @param name          name of the dataset. Typically use the filename or URI.
+   * @param iospClassName fully qualified class name of the IOSP class to handle this file
+   * @return NetcdfFile object, or null if cant find IOServiceProver
+   * @throws IOException            if read error
+   * @throws ClassNotFoundException cannat find iospClassName in the class path
+   * @throws InstantiationException if class cannot be instantiated
+   * @throws IllegalAccessException if class is not accessible
+   */
+  public static NetcdfFile openDiskless(String location, String iospClassName) 
+          throws IOException, ClassNotFoundException, IllegalAccessException, InstantiationException {
+
+    File file = new File(location);
+    ByteArrayOutputStream bos = new ByteArrayOutputStream((int) file.length());
+    try (InputStream in = new BufferedInputStream(new FileInputStream(location))) {
+      IO.copy(in, bos);
+    }
+    
+    ucar.unidata.io.InMemoryRandomAccessFile raf = new ucar.unidata.io.InMemoryRandomAccessFile(location, bos.toByteArray());
+    Class iospClass = NetcdfFile.class.getClassLoader().loadClass(iospClassName);
+    IOServiceProvider spi = (IOServiceProvider) iospClass.newInstance();
+
+    return new NetcdfFile(spi,raf, true, false, location, null);
+  }
+  
+  /**
    * Read a remote CDM file into memory. All reads are then done from memory.
    * Use Diskless mode for Netcdf 4
    *
@@ -838,9 +864,9 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, Closeable 
    * @return a NetcdfFile, which is completely in memory
    * @throws IOException if error reading file
    */
-  public static NetcdfFile openInMemoryFull(String location) throws IOException {
+  public static NetcdfFile openDiskless(String location) throws IOException {
     ucar.nc2.util.CancelTask cancelTask = null;
-    return openInMemoryFull(location, cancelTask);
+    return openDiskless(location, cancelTask);
   }
   
   /**
@@ -852,9 +878,9 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, Closeable 
    * @return a NetcdfFile, which is completely in memory
    * @throws IOException if error reading file
    */
-  public static NetcdfFile openInMemoryFull(String location, ucar.nc2.util.CancelTask cancelTask) throws IOException {
+  public static NetcdfFile openDiskless(String location, ucar.nc2.util.CancelTask cancelTask) throws IOException {
     Object iospMessage = null;
-    return openInMemoryFull(location, cancelTask, iospMessage);
+    return openDiskless(location, cancelTask, iospMessage);
   }
   
   /**
@@ -867,7 +893,8 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, Closeable 
    * @return a NetcdfFile, which is completely in memory
    * @throws IOException if error reading file
    */
-  public static NetcdfFile openInMemoryFull(String location, ucar.nc2.util.CancelTask cancelTask, Object iospMessage) throws IOException {
+  public static NetcdfFile openDiskless(String location, ucar.nc2.util.CancelTask cancelTask, 
+          Object iospMessage) throws IOException {
     
     File file = new File(location);
     ByteArrayOutputStream bos = new ByteArrayOutputStream((int) file.length());
@@ -885,68 +912,12 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, Closeable 
   }
   
   /**
-   * Open Netcdf file from buffer. All reads are then done from memory.
-   * Use In Memory mode for Netcdf 4
-   *
-   *
-   * @param name File name.
-   * @param data Buffer containing file.
-   * @return a NetcdfFile, which is completely in memory
-   * @throws IOException if error reading file
-   */
-  public static NetcdfFile openInMemoryFull(String name, byte[] data) throws IOException {
-    ucar.nc2.util.CancelTask cancelTask = null;
-    return openInMemoryFull(name, data, cancelTask);
-  }
-  
-  /**
-   * Open Netcdf file from buffer. All reads are then done from memory.
-   * Use In Memory mode for Netcdf 4
-   *
-   *
-   * @param name File name.
-   * @param data Buffer containing file.
-   * @param cancelTask allow task to be cancelled; may be null.
-   * @return a NetcdfFile, which is completely in memory
-   * @throws IOException if error reading file
-   */
-  public static NetcdfFile openInMemoryFull(String name, byte[] data, ucar.nc2.util.CancelTask cancelTask) throws IOException {
-    Object iospMessage = null;
-    return openInMemoryFull(name, data, cancelTask, iospMessage);
-  }
-  
-  /**
-   * Open Netcdf file from buffer. All reads are then done from memory.
-   * Use In Memory mode for Netcdf 4
-   *
-   *
-   * @param name File name.
-   * @param data Buffer containing file.
-   * @param cancelTask allow task to be cancelled; may be null.
-   * @param iospMessage special iosp tweaking (sent before open is called), may be null
-   * @return a NetcdfFile, which is completely in memory
-   * @throws IOException if error reading file
-   */
-  public static NetcdfFile openInMemoryFull(String name, byte[] data, ucar.nc2.util.CancelTask cancelTask, Object iospMessage) throws IOException {
-    
-    ucar.unidata.io.InMemoryRandomAccessFile raf = new ucar.unidata.io.InMemoryRandomAccessFile(name, data);
-
-    try {
-      return open(raf, name, false, true, cancelTask, iospMessage);
-    } catch (Throwable t) {
-      raf.close();
-      throw new IOException(t);
-    }
-  
-  }
-  
-  /**
-   * TODO
+   * Open existing Netcdf
    * 
-   * @param raf 
-   * @param location 
-   * @param cancelTask 
-   * @param iospMessage
+   * @param raf          random access file
+   * @param location     location of CDM file.
+   * @param cancelTask   allow task to be cancelled; may be null.
+   * @param iospMessage  special iosp tweaking (sent before open is called), may be null
    * @throws IOException if error reading file
    */
   public static NetcdfFile open(ucar.unidata.io.RandomAccessFile raf, String location, ucar.nc2.util.CancelTask cancelTask,
@@ -955,19 +926,19 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, Closeable 
   }
   
   /**
-   * TODO
+   * Open existing Netcdf
    * 
-   * @param raf 
-   * @param location 
-   * @param cancelTask 
-   * @param diskless 
-   * @param inMemory 
-   * @param iospMessage
+   * @param raf         random access file
+   * @param location    location of CDM file.
+   * @param cancelTask  allow task to be cancelled; may be null.
+   * @param diskless    true if diskless mode activated
+   * @param inMemory    true if inMemory mode activated
+   * @param iospMessage special iosp tweaking (sent before open is called), may be null
    * @throws IOException if error reading file
    */
   public static NetcdfFile open(ucar.unidata.io.RandomAccessFile raf, String location, boolean diskless, boolean inMemory,
                                   ucar.nc2.util.CancelTask cancelTask, Object iospMessage) throws IOException {
-
+      
     IOServiceProvider spi = null;
     if (debugSPI) log.info("NetcdfFile try to open = {}", location);
 
@@ -1520,7 +1491,7 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, Closeable 
   
   /**
    * InMemory buffer getter.
-   * Do not use. Until close was called
+   * Return null until close was called
    *
    * @return InMemory buffer 
    */
@@ -1793,13 +1764,13 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, Closeable 
   }
   
   /**
-   * Open an existing netcdf file, passing in the iosp and the raf. TODO
+   * Open an existing netcdf file, passing in the iosp and the raf. 
    * Use NetcdfFileSubclass to access this constructor
    *
    * @param spi        use this IOServiceProvider instance
    * @param raf        read from this RandomAccessFile
-   * @param diskless   TODO
-   * @param inMemory   TODO
+   * @param diskless   Diskless mode
+   * @param inMemory   InMemory mode
    * @param location   location of data
    * @param cancelTask allow user to cancel
    * @throws IOException if I/O error

@@ -288,17 +288,18 @@ public class Nc4Iosp extends AbstractIOServiceProvider implements IOServiceProvi
     if (isClosed) return;
     if (ncid < 0) return;
     int ret = 0;
-    if (this.ncfile.isInMemory() || this.ncfile.isDiskLess()) {
-
-      NcMemio param = new NcMemio(100000); //TODO 
+    if (this.ncfile.isInMemory()) {
+      NcMemio param = new NcMemio(); 
       ret = nc4.nc_close_memio(ncid, param.getStructure());
-
-      this.ncfile.setInMemoryBuffer(param.getStructure().memory.getByteArray(0, param.getStructure().size.intValue()));
-
+      if ( param.getStructure() != null 
+            && param.getStructure().memory != null 
+            && param.getStructure().size != null ) {
+        this.ncfile.setInMemoryBuffer(param.getStructure().memory.getByteArray(0, param.getStructure().size.intValue()));
+      } else {
+        throw new IOException("Invalid nc_close_memio return content");
+      }
     } else {
-
       ret = nc4.nc_close(ncid);
-
     }
     
     if (ret != 0)
@@ -322,11 +323,18 @@ public class Nc4Iosp extends AbstractIOServiceProvider implements IOServiceProvi
     if (!isClibraryPresent()) {
       throw new UnsupportedOperationException("Couldn't load NetCDF C library (see log for details).");
     }
-    
+
     byte[] buffer = null;
-    if (raf != null){
-      if (this.ncfile.isInMemory() && (InMemoryRandomAccessFile)raf != null) {
+    if (raf != null) {
+      if (this.ncfile.isInMemory() ) {
+        if ( raf instanceof InMemoryRandomAccessFile ) {
           buffer = ((InMemoryRandomAccessFile)raf).getBuffer();
+          if (buffer == null) {
+            throw new UnsupportedOperationException("For InMemory mode not null buffer shall be set in InMemoryRandomAccessFile");
+          }
+        } else {
+          throw new UnsupportedOperationException("Invalide RandomAccessFile. For InMemory mode shall be InMemoryRandomAccessFile");
+        }
       }
       raf.close(); // not used
     }
@@ -338,28 +346,27 @@ public class Nc4Iosp extends AbstractIOServiceProvider implements IOServiceProvi
 
     IntByReference ncidp = new IntByReference();
     
-    EnumSet<NcMode> mode = EnumSet.noneOf(NcMode.class);
+    // Compute flag
+    int modeInt = 0;
+    
     // Add read/write mode
     if (readOnly) {
-        mode.add(NcMode.NC_NOWRITE);
+      modeInt |= NC_NOWRITE;
     } else {
-        mode.add(NcMode.NC_WRITE);
+      modeInt |= NC_WRITE;
     }
     // Add diskless mode if required
     if (this.ncfile.isDiskLess()) {
-        mode.add(NcMode.NC_DISKLESS);
+        modeInt |= NC_DISKLESS;
     }
-    // Compute flag
-    int modeInt = NcModeConvertor.compute(mode);
-    
-    
+
     int ret = 0;
     
-    if (this.ncfile.isInMemory() && buffer != null) {
-        NcMemio params = new NcMemio(buffer);
-        ret = nc4.nc_open_memio(location, modeInt, params.getStructure(),  ncidp);
+    if (this.ncfile.isInMemory()) {
+      NcMemio params = new NcMemio(buffer);
+      ret = nc4.nc_open_memio(location, modeInt, params.getStructure(),  ncidp);
     } else {
-        ret = nc4.nc_open(location, modeInt, ncidp);
+      ret = nc4.nc_open(location, modeInt, ncidp);
     }
     if (ret != 0) throw new IOException(ret + ": " + nc4.nc_strerror(ret));
 
@@ -2406,14 +2413,11 @@ public class Nc4Iosp extends AbstractIOServiceProvider implements IOServiceProvi
 
     IntByReference ncidp = new IntByReference();
     
-    EnumSet<NcMode> mode = EnumSet.noneOf(NcMode.class);
-    // Add diskless mode if required
-    if (this.ncfile.isDiskLess()) {
-      mode.add(NcMode.NC_DISKLESS);
-    }
     int modeInt = createMode();
-    // Compute flag
-    modeInt = NcModeConvertor.compute(modeInt,mode);
+    
+    if (ncfile.isDiskLess()) {
+        modeInt |= NC_DISKLESS;
+    }
     
     if (this.ncfile.isInMemory() ) {
       ret = nc4. nc_create_mem(filename, modeInt, new SizeT(preallocateSize), ncidp);
@@ -2435,7 +2439,7 @@ public class Nc4Iosp extends AbstractIOServiceProvider implements IOServiceProvi
     if (debugWrite) System.out.printf("create done%n%n");
   }
 
-  
+
   /*
     cmode    The creation mode flag. The following flags are available:
     NC_NOCLOBBER (do not overwrite existing file),
